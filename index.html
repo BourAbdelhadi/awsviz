@@ -1,188 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <title>AWS IAM Policy Visualizer</title>
     <script src="https://d3js.org/d3.v6.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/save-svg-as-png@1.4.17/lib/saveSvgAsPng.min.js"></script>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            margin: 0;
-            background-color: #f4f4f9;
-            color: #333;
-        }
-
-        #content {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            padding: 20px;
-        }
-
-        #left-pane,
-        #right-pane {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            margin-bottom: 20px;
-            overflow: hidden;
-            /* Ensures content doesn't overflow */
-        }
-
-        #policy-input {
-            width: 100%;
-            height: 200px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 10px;
-            font-size: 14px;
-            margin-top: 10px;
-            box-sizing: border-box;
-            /* Ensures padding is included in the element's total width and height */
-            resize: vertical;
-            /* Allows vertical resizing */
-        }
-
-        #visualization {
-            width: 100%;
-            min-height: 450px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-top: 20px;
-            overflow: auto;
-            /* Ensures content doesn't overflow */
-            resize: vertical;
-            /* Allows vertical resizing */
-        }
-
-        #policy-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            background: #fff;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        #policy-table th,
-        #policy-table td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            text-align: left;
-        }
-
-        #policy-table th {
-            background-color: #007bff;
-            color: #fff;
-        }
-
-        .needed {
-            background-color: lightgreen;
-        }
-
-        .not-needed {
-            background-color: lightcoral;
-        }
-
-        .node {
-            cursor: pointer;
-        }
-
-        .node circle {
-            fill: #fff;
-            stroke: steelblue;
-            stroke-width: 3px;
-        }
-
-        .node text {
-            font: 12px sans-serif;
-        }
-
-        .link {
-            fill: none;
-            stroke: #ccc;
-            stroke-width: 2px;
-        }
-
-        .node image {
-            width: 24px;
-            height: 24px;
-        }
-
-        button {
-            background-color: #007bff;
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            /* Add margin between buttons */
-        }
-
-        button:hover {
-            background-color: #0056b3;
-        }
-
-        h1,
-        h2 {
-            margin: 0;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #ccc;
-        }
-
-        p {
-            margin: 10px 0;
-        }
-
-        footer {
-            text-align: center;
-            padding: 10px;
-            background: #f1f1f1;
-            border-top: 1px solid #ccc;
-        }
-
-        footer a {
-            color: #007bff;
-            text-decoration: none;
-        }
-
-        #right-pane,
-        #table-pane {
-            display: none;
-            /* Initially hide the visualization and table */
-        }
-        .needed td:not(.description-cell), .needed select {
-            background-color: lightgreen;
-        }
-
-        .not-needed td:not(.description-cell), .not-needed select {
-            background-color: lightcoral;
-        }
-
-        .description-cell {
-            background-color: transparent !important;
-        }
-
-
-    </style>
+    <link rel="stylesheet" type="text/css" href="css/styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 </head>
-
 <body>
     <div id="content">
         <div id="left-pane">
             <h1>AWS IAM Policy Visualizer</h1>
-            
             <h2>Policy JSON Input</h2>
+            <div class="button-group">
+                <div class="split-button">
+                    <input type="file" id="fileInput" accept=".zip" style="display:none;">
+                    <label for="fileInput" class="custom-file-upload">Import Policy ZIP</label>
+                    <button class="split-button-dropdown" onclick="openModal()">?</button>
+                </div>
+                <button class="custom-test-button" onclick="testPolicy()">Test Me</button>
+            </div>
+            <div id="fileTree" style="display: none;">
+                <h2>Policy Files</h2>
+                <input type="text" id="searchInput" placeholder="Find Policy Files...">
+                <ul id="fileList"></ul>
+            </div>
             <textarea id="policy-input" placeholder="Paste your IAM policy JSON here..."></textarea>
-            <button onclick="testPolicy()">Test Me</button>
         </div>
         <div id="right-pane">
             <h2>Policy Visualization</h2>
@@ -203,7 +47,7 @@
                         <th>Resource</th>
                         <th>Effect</th>
                         <th>Status</th>
-                        <th>Description</th> 
+                        <th>Description</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -216,8 +60,40 @@
         <button onclick="window.location.href='scenarios.html'">Use Cases</button>
         Built by <a href="https://www.linkedin.com/in/bohr/">Bour Abdelhadi</a>
     </footer>
+   <!-- Modal -->
+   <div id="instructionModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>How to Get a ZIP File with All IAM Policies in Your AWS Account</h2>
+        <p>Follow these steps to download and run the bash script to gather all IAM policies into a zip file:</p>
+        <ol>
+            <li>
+                Download the bash script by running:
+                <pre><code id="download-command">curl -O https://raw.githubusercontent.com/YourGitHubUsername/YourRepoName/main/download-policies.sh</code></pre>
 
-    <script src="visualizer.js"></script>
+            </li>
+            <li>Navigate to the directory where the script is downloaded.</li>
+            <li>
+                Set up your AWS credentials:
+                <pre><code id="credentials-command">export AWS_ACCESS_KEY_ID=your_access_key_id
+export AWS_SECRET_ACCESS_KEY=your_secret_access_key</code></pre>
+                
+            </li>
+            <li>
+                Give execution permission to the script:
+                <pre><code id="permission-command">chmod +x download-policies.sh</code></pre>
+               
+            </li>
+            <li>
+                Run the script:
+                <pre><code id="run-command">./download-policies.sh</code></pre>
+                
+            </li>
+            <li>The script will create a zip file containing all your IAM policy JSON files.</li>
+        </ol>
+        <p>Once you have the zip file, you can upload it on the main page to visualize the policies.</p>
+    </div>
+</div>
+<script src="js/visualizer.js"></script>
 </body>
-
 </html>

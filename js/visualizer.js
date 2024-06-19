@@ -1,6 +1,6 @@
 function debounce(func, delay) {
     let debounceTimer;
-    return function() {
+    return function () {
         const context = this;
         const args = arguments;
         clearTimeout(debounceTimer);
@@ -9,8 +9,8 @@ function debounce(func, delay) {
 }
 
 function translatePolicyStatement(statement) {
-    const effect = statement.Effect === "Allow" 
-        ? "<strong style='color: green;'>is allowed to</strong>" 
+    const effect = statement.Effect === "Allow"
+        ? "<strong style='color: green;'>is allowed to</strong>"
         : "<strong style='color: red;'>is denied from</strong>";
     const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action];
     const resources = Array.isArray(statement.Resource) ? statement.Resource : [statement.Resource];
@@ -40,7 +40,7 @@ function translatePolicyStatement(statement) {
 
     // Handle resource descriptions
     const resourceDescriptions = resources.map(resource => resource === '*' ? 'all resources' : resource).join(", ");
-    
+
     return `The user ${effect}:\n<ul>${uniqueActionDescriptions.map(desc => `<li>${desc}</li>`).join("")}</ul>on ${resourceDescriptions}.`;
 }
 
@@ -222,11 +222,11 @@ function renderTree(root) {
         .append("svg")
         .attr("width", width)
         .attr("height", height)
-        .call(d3.zoom().on("zoom", function(event) {
+        .call(d3.zoom().on("zoom", function (event) {
             svg.attr("transform", event.transform);
         }))
         .append("g")
-        .attr("transform", `translate(${width / 4}, ${height / 20})`);  
+        .attr("transform", `translate(${width / 4}, ${height / 20})`);
 
     const treeLayout = d3.tree().size([height, width - 160]);
     const rootD3 = d3.hierarchy(root, d => d.children);
@@ -316,7 +316,7 @@ function renderTree(root) {
         const linkEnter = link.enter().insert('path', "g")
             .attr("class", "link")
             .attr('d', d => {
-                const o = {x: source.x0, y: source.y0};
+                const o = { x: source.x0, y: source.y0 };
                 return diagonal(o, o);
             });
 
@@ -329,7 +329,7 @@ function renderTree(root) {
         const linkExit = link.exit().transition()
             .duration(duration)
             .attr('d', d => {
-                const o = {x: source.x, y: source.y};
+                const o = { x: source.x, y: source.y };
                 return diagonal(o, o);
             })
             .remove();
@@ -417,3 +417,78 @@ function testPolicy() {
 // Add event listener to update visualization and table on textarea input
 document.getElementById('policy-input').addEventListener('input', debounce(visualizePolicy, 500));
 
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+    document.getElementById('policy-input').addEventListener('input', handleTextareaChange);
+    document.getElementById('searchInput').addEventListener('input', handleSearch);
+    window.addEventListener('click', outsideClick);
+    window.addEventListener('keydown', keyPress);
+});
+let allFiles = [];
+let zipInstance = null;
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (file && file.name.endsWith('.zip')) {
+        zipInstance = await JSZip.loadAsync(file);
+        const fileList = document.getElementById('fileList');
+        fileList.innerHTML = '';
+        document.getElementById('fileTree').style.display = 'block';
+        allFiles = Object.keys(zipInstance.files).filter(filename => filename.endsWith('.json'));
+        displayFiles(allFiles);
+    } else {
+        alert('Please upload a valid zip file.');
+    }
+}
+function displayFiles(files) {
+    const fileList = document.getElementById('fileList');
+    fileList.innerHTML = '';
+    files.forEach(filename => {
+        const li = document.createElement('li');
+        li.textContent = filename;
+        li.addEventListener('click', async () => {
+            const fileContent = await zipInstance.file(filename).async('text');
+            document.getElementById('policy-input').value = fileContent;
+            // Update visualization and table
+            const policyJson = JSON.parse(fileContent);
+            visualizePolicy(policyJson);
+            populatePolicyTable(policyJson);
+            // Highlight selected file
+            document.querySelectorAll('#fileList li').forEach(item => item.classList.remove('selected'));
+            li.classList.add('selected');
+        });
+        fileList.appendChild(li);
+    });
+}
+function handleSearch(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    const filteredFiles = allFiles.filter(filename => filename.toLowerCase().includes(searchTerm));
+    displayFiles(filteredFiles);
+}
+function handleTextareaChange() {
+    const fileContent = document.getElementById('policy-input').value;
+    try {
+        const policyJson = JSON.parse(fileContent);
+        visualizePolicy(policyJson);
+        populatePolicyTable(policyJson);
+    } catch (e) {
+        console.error("Invalid JSON");
+    }
+}
+// Modal functions
+function openModal() {
+    document.getElementById('instructionModal').style.display = 'block';
+}
+function closeModal() {
+    document.getElementById('instructionModal').style.display = 'none';
+}
+function outsideClick(event) {
+    if (event.target == document.getElementById('instructionModal')) {
+        closeModal();
+    }
+}
+function keyPress(event) {
+    if (event.key === 'Escape') {
+        closeModal();
+    }
+}
