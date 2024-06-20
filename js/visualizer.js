@@ -8,19 +8,19 @@ function debounce(func, delay) {
     };
 }
 
+
 function translatePolicyStatement(statement) {
     const effect = statement.Effect === "Allow"
         ? "<strong style='color: green;'>is allowed to</strong>"
         : "<strong style='color: red;'>is denied from</strong>";
     const actions = Array.isArray(statement.Action) ? statement.Action : [statement.Action];
     const resources = Array.isArray(statement.Resource) ? statement.Resource : [statement.Resource];
-
+    const conditions = statement.Condition ? statement.Condition : {};
     const actionDescriptions = actions.map(action => {
         const parts = action.split(':');
         if (parts.length === 2) {
             const service = parts[0];
             let operation = parts[1];
-
             // Handle wildcards
             if (operation === '*') {
                 operation = '<strong>perform any action</strong>';
@@ -29,22 +29,162 @@ function translatePolicyStatement(statement) {
             } else {
                 operation = `perform ${operation.replace(/([A-Z])/g, ' $1').toLowerCase()}`;
             }
-
             return `${operation} in ${service}`;
         }
         return action;
     });
-
     // Remove any duplicate action descriptions
     const uniqueActionDescriptions = [...new Set(actionDescriptions)];
-
     // Handle resource descriptions
     const resourceDescriptions = resources.map(resource => resource === '*' ? 'all resources' : resource).join(", ");
-
-    return `The user ${effect}:\n<ul>${uniqueActionDescriptions.map(desc => `<li>${desc}</li>`).join("")}</ul>on ${resourceDescriptions}.`;
+    // Handle condition descriptions
+    let conditionDescriptions;
+    if (Object.keys(conditions).length === 0) {
+        conditionDescriptions = 'N/A';
+    } else {
+        conditionDescriptions = Object.entries(conditions).map(([operator, condition]) => {
+            const conditionList = Object.entries(condition).map(([key, value]) => {
+                let readableConditionKey;
+                switch (key) {
+                    case 'SourceIp':
+                        readableConditionKey = 'Source IP address';
+                        break;
+                    case 'UserAgent':
+                        readableConditionKey = 'User agent';
+                        break;
+                    case 'CurrentTime':
+                        readableConditionKey = 'Current time';
+                        break;
+                    case 'SecureTransport':
+                        readableConditionKey = 'Secure transport (HTTPS)';
+                        break;
+                    case 'MultiFactorAuthPresent':
+                        readableConditionKey = 'MFA is present';
+                        break;
+                    case 'aws:RequestTag':
+                        readableConditionKey = 'Request tag';
+                        break;
+                    case 'aws:ResourceTag':
+                        readableConditionKey = 'Resource tag';
+                        break;
+                    case 'aws:TagKeys':
+                        readableConditionKey = 'Tag keys';
+                        break;
+                    case 'aws:Referer':
+                        readableConditionKey = 'Referer';
+                        break;
+                    case 'aws:SourceVpc':
+                        readableConditionKey = 'Source VPC';
+                        break;
+                    case 'aws:SourceVpce':
+                        readableConditionKey = 'Source VPC endpoint';
+                        break;
+                    case 'iam:PassedToService':
+                        readableConditionKey = 'IAM role passed to service';
+                        break;
+                    default:
+                        readableConditionKey = key;
+                }
+                let readableConditionOperator;
+                switch (operator) {
+                    case 'StringEquals':
+                        readableConditionOperator = 'must exactly match';
+                        break;
+                    case 'StringNotEquals':
+                        readableConditionOperator = 'must not match';
+                        break;
+                    case 'StringEqualsIgnoreCase':
+                        readableConditionOperator = 'must exactly match (case-insensitive)';
+                        break;
+                    case 'StringNotEqualsIgnoreCase':
+                        readableConditionOperator = 'must not match (case-insensitive)';
+                        break;
+                    case 'StringLike':
+                        readableConditionOperator = 'must be similar to';
+                        break;
+                    case 'StringNotLike':
+                        readableConditionOperator = 'must not be similar to';
+                        break;
+                    case 'StringEqualsIfExists':
+                        readableConditionOperator = 'must exactly match if exists';
+                        break;
+                    case 'StringLikeIfExists':
+                        readableConditionOperator = 'must be similar to if exists';
+                        break;
+                    case 'NumericEquals':
+                        readableConditionOperator = 'must be equal to';
+                        break;
+                    case 'NumericNotEquals':
+                        readableConditionOperator = 'must not be equal to';
+                        break;
+                    case 'NumericLessThan':
+                        readableConditionOperator = 'must be less than';
+                        break;
+                    case 'NumericLessThanEquals':
+                        readableConditionOperator = 'must be less than or equal to';
+                        break;
+                    case 'NumericGreaterThan':
+                        readableConditionOperator = 'must be greater than';
+                        break;
+                    case 'NumericGreaterThanEquals':
+                        readableConditionOperator = 'must be greater than or equal to';
+                        break;
+                    case 'DateEquals':
+                        readableConditionOperator = 'must exactly match date';
+                        break;
+                    case 'DateNotEquals':
+                        readableConditionOperator = 'must not match date';
+                        break;
+                    case 'DateLessThan':
+                        readableConditionOperator = 'must be earlier than date';
+                        break;
+                    case 'DateLessThanEquals':
+                        readableConditionOperator = 'must be earlier than or equal to date';
+                        break;
+                    case 'DateGreaterThan':
+                        readableConditionOperator = 'must be later than date';
+                        break;
+                    case 'DateGreaterThanEquals':
+                        readableConditionOperator = 'must be later than or equal to date';
+                        break;
+                    case 'Bool':
+                        readableConditionOperator = 'must be';
+                        break;
+                    case 'IpAddress':
+                        readableConditionOperator = 'must be IP address';
+                        break;
+                    case 'NotIpAddress':
+                        readableConditionOperator = 'must not be IP address';
+                        break;
+                    case 'ArnEquals':
+                        readableConditionOperator = 'must exactly match ARN';
+                        break;
+                    case 'ArnNotEquals':
+                        readableConditionOperator = 'must not match ARN';
+                        break;
+                    case 'ArnLike':
+                        readableConditionOperator = 'must be similar to ARN';
+                        break;
+                    case 'ArnNotLike':
+                        readableConditionOperator = 'must not be similar to ARN';
+                        break;
+                    case 'BinaryEquals':
+                        readableConditionOperator = 'must exactly match binary';
+                        break;
+                    case 'Null':
+                        readableConditionOperator = 'must be null';
+                        break;
+                    // Add more operators as needed
+                    default:
+                        readableConditionOperator = operator;
+                }
+                return `${readableConditionKey} ${readableConditionOperator}: ${JSON.stringify(value, null, 2)}`;
+            }).join("<br>");
+            return conditionList;
+        }).join("<br>");
+    }
+    return `The user ${effect}:\n<ul>${uniqueActionDescriptions.map(desc => `<li>${desc}</li>`).join("")}</ul>on ${resourceDescriptions}.<br><b>Conditions: ${conditionDescriptions}`;
 }
-
-
 
 const serviceIcons = {
     's3': `assets/s3.svg`,
@@ -56,17 +196,17 @@ const serviceIcons = {
     'sqs': `assets/sqs.svg`,
     'iam': `assets/iam.svg`,
     'cloudwatch': `assets/cw.svg`,
-    'cloudformation': `assets/cf.svg`, 
-    'eks': `assets/eks.svg` , 
-    'ecs': `assets/ecs.svg` , 
-    'states': `assets/states.svg` , 
-    'athena': `assets/athena.svg` , 
-    'glue': `assets/glue.svg` , 
-    'kinesis': `assets/kinesis.svg` , 
-    'cloudtrail': `assets/cloudtrail.svg` , 
-    'elasticbeanstalk': `assets/elasticbeanstalk.svg` , 
-    'amplify': `assets/amplify.svg` , 
-    'appsync': `assets/appsync.svg`, 
+    'cloudformation': `assets/cf.svg`,
+    'eks': `assets/eks.svg`,
+    'ecs': `assets/ecs.svg`,
+    'states': `assets/states.svg`,
+    'athena': `assets/athena.svg`,
+    'glue': `assets/glue.svg`,
+    'kinesis': `assets/kinesis.svg`,
+    'cloudtrail': `assets/cloudtrail.svg`,
+    'elasticbeanstalk': `assets/elasticbeanstalk.svg`,
+    'amplify': `assets/amplify.svg`,
+    'appsync': `assets/appsync.svg`,
     'batch': `assets/batch.svg`,
     'acm': `assets/acm.svg`,
     'cloudfront': `assets/cloudfront.svg`,
@@ -82,7 +222,7 @@ const serviceIcons = {
     'quicksight': `assets/quicksight.svg`,
     'ses': `assets/ses.svg`,
     'ssm': `assets/ssm.svg`,
-    'waf': `assets/waf.svg`  
+    'waf': `assets/waf.svg`
 };
 
 function getServiceLogo(action) {
